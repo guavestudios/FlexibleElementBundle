@@ -4,7 +4,10 @@ namespace Guave\FlexibleElementBundle\Elements;
 
 use Contao\BackendTemplate;
 use Contao\ContentElement;
+use Contao\ContentModel;
 use Contao\FilesModel;
+use Contao\StringUtil;
+use Contao\System;
 
 class ContentFlexibleElement extends ContentElement
 {
@@ -16,7 +19,7 @@ class ContentFlexibleElement extends ContentElement
      */
     protected function compile(): void
     {
-        $this->Template->flexibleImage = self::prepareImages($this, 'orderSRC');
+        $this->Template->flexibleImage = self::prepareImages($this->getModel(), 'orderSRC');
     }
 
     /**
@@ -27,8 +30,11 @@ class ContentFlexibleElement extends ContentElement
         if ($this->customTpl) {
             $tmplStr = str_replace('.html5', '', $this->customTpl);
         } else {
-            $tmpl    = static::getTemplateByLayout($this->elementTemplate);
-            $tmplStr = $tmpl['template'];
+            $tmpl = static::getTemplateByLayout($this->elementTemplate);
+            $tmplStr = '';
+            if (!empty($tmpl['template'])) {
+                $tmplStr = $tmpl['template'];
+            }
         }
 
         $this->strTemplate = $tmplStr;
@@ -48,21 +54,19 @@ class ContentFlexibleElement extends ContentElement
 
     public static function getIconPath()
     {
-        global $GLOBALS;
-
         return $GLOBALS['TL_FLEXIBLEELEMENT']['iconPath'];
     }
 
     /**
      * @deprecated
      */
-    public static function getBackendMap()
+    public static function getBackendMap(): array
     {
-        $base      = static::getIconPath();
-        $arr       = [];
+        $base = static::getIconPath();
+        $arr = [];
         $templates = &$GLOBALS['TL_FLEXIBLEELEMENT']['templates'];
         foreach ($templates as $tmpl) {
-            $arr[] = $base.$tmpl['id'];
+            $arr[] = $base . $tmpl['id'];
         }
 
         return $arr;
@@ -80,48 +84,45 @@ class ContentFlexibleElement extends ContentElement
         return null;
     }
 
-    public static function prepareImages(&$obj, $attr)
+    public static function prepareImages(ContentModel $model, string $attribute): array
     {
+        if ($model->$attribute === null) {
+            return [];
+        }
+
+        if (!$model->$attribute || !\is_array(StringUtil::deserialize($model->$attribute))) {
+            return self::getImageData(FilesModel::findByUuid($model->$attribute));
+        }
+
         $images = [];
+        $files = FilesModel::findMultipleByUuids(StringUtil::deserialize($model->$attribute));
 
-        if (is_string($obj->$attr)) {
-            $imagesArr = unserialize($obj->$attr);
-
-            foreach ($imagesArr as $image) {
-                $images[] = static::getImageData(FilesModel::findByUuid($image));
-            }
-
-            $obj->$attr = $images;
-        } else {
-            if (is_array($obj->$attr)) {
-                return $obj->$attr;
-            }
+        foreach ($files as $file) {
+            $images[] = self::getImageData($file);
         }
 
         return $images;
     }
 
-    public static function getImageData(&$objModel)
+    public static function getImageData(FilesModel $model): array
     {
-        if (!$objModel) {
-            return;
+        $rootDir = System::getContainer()->getParameter('kernel.project_dir');
+
+        if (!is_file($rootDir . '/' . $model->path)) {
+            return [];
         }
 
-        if (!$objModel instanceof FilesModel) {
-            return;
-        }
-
-        if (is_file(TL_ROOT.'/'.$objModel->path)) {
-            $meta = unserialize($objModel->meta);
+        if ($model->meta) {
+            $meta = StringUtil::deserialize($model->meta);
             $meta = $meta[$GLOBALS['TL_LANGUAGE']];
-
-            return [
-                'src'   => $objModel->path,
-                'name'  => $objModel->name,
-                'title' => $meta['title'] ? $meta['title'] : $objModel->name,
-            ];
+        } else {
+            $meta['title'] = $model->title;
         }
 
-        return [];
+        return [
+            'src' => '/' . $model->path,
+            'name' => $model->name,
+            'title' => $meta['title'],
+        ];
     }
 }

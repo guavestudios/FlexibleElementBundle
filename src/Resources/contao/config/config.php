@@ -21,5 +21,5 @@ $GLOBALS['TL_FLEXIBLEELEMENT']['templates'] = [
     ],
 ];
 
-$GLOBALS['TL_FLEXIBLEELEMENT']['iconPath'] = 'web/bundles/guaveflexibleelement/assets';
+$GLOBALS['TL_FLEXIBLEELEMENT']['iconPath'] = 'bundles/guaveflexibleelement/assets';
 $GLOBALS['TL_FLEXIBLEELEMENT']['iconExt']  = '.jpg';
